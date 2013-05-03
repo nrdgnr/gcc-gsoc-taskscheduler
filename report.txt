@@ -1,1 +1,49 @@
-test
+Streets ahead of Task Scheduler with Task-Stealing for OpenMP
+Student: Guray Ozen   Email Address: guray dot ozen at gmail dot com
+University:  Polytechnic University of Catalonia, BarcelonaTech
+Synopsis
+
+Tasking is the most significant feature included in the new OpenMP 3.0 standard. Although GCC is providing support for this feature, in its task scheduler is not very good. It is slower than other implementation like a Nanos++, Intel C Compiler, MIT Cilk. This project implements 2 new task schedulers which is a combination of others schedulers. Also task-stealing which is very important feature will be provided.
+In addition to this project can help to develop for taskyield OpenMP 3.1 facility.
+Introduction and Observations
+
+GCC has a task scheduler and it creates task with lazy-task creation techniques. I'm trying to speed up the OpenMP implementation in GCC and Intel compiler. I'm working on multisort because i thought it has too much branches and I applied tree model task. I used Paraver and Extrae to profile program after that, I executed them on a machine Minotauro supercomputer in top500 with Intel Xeon E5649 (6-Core, each core has 2 threads) a 2.53 GHz.
+It’s my multisort code with OpenMP 						https://github.com/grypp/gcc-gsoc-taskscheduler/blob/master/multisort-omp.c
+The following report shows the OpenMP in GCC scheduling vs Intel C Compiler: 		https://raw.github.com/grypp/gcc-gsoc-taskscheduler/master/openmp.png
+Light blue mean idle, dark blue mean running, Yellow scheduling, Fork/Join. First trace belongs to intel trace with default configuration. 2nd trace with spincount=10, 3rd spincount=100, 5rd with spincount=infinity. In addition to you can see running time as nanosecond bottom right corner. 
+GCC is little bit slower than intel because of task scheduling. Some threads (for example thread number 4,9,10 in the multisort-omp-12-spin10 trace or 7,9,11 threads in the multisort-omp-12-infinity trace) waiting too much to other threads. 	 
+The Project Proposal
+
+	Implementation of this project is to perform new task scheduler difference from others. 
+The first algorithm is often used as a breadth-first scheduler. Although breadth-first execution has a many problem memory consumption and data locality, it does maximize parallelism if you have an many number of physical threads. Nowadays many-core is very likely. So it should not be underestimated. Therefore Intel was developed depth-first scheduler. They added dequeue and stealing facility in the breadth-first algorithm. Other most used is Work-First Scheduler whenever a task is created, the creating task is suspended and the executing thread switches to the newly created task. When a task is suspended the task is placed in a per thread local pool.
+I’m going to implement 2 algorithms. 
+1st Priority-based task scheduler 
+I think it will provide taskyield facility in the OpenMP 3.1.
+Task Adding & Running
+The Application has one global queue. When a new task needs to be added, it will be added on the head of the global queue. If the task was created by taskyield, it will be added on the tail on the global queue. And for this task, new a local queue is created and attached it. 
+Again when a new task needs to be added, if there is parent, it will be added on the head of the parent’s local queue. And for newly created task, a new local queue is created and attached it. Then after parent task is suspended and newly created task is started.
+And again if it’s taskyield, it won’t be added parent’s queue. Because it will be added previous tail of the parent’s queue. If there’s no previous parent, it will be added tail of the global queue.
+Stealing
+What happens when a thread's local work queue is empty and the global queue is also empty? The task-stealing will start with neighbor’s local queue. It will try to steal from neighbor in FIFO order. Sometimes tasks cannot be stolen. In this case Task stealing starts to steal parent’s tasks.
+Taskyield Stealing
+Taskyield always stay to the end, because task-stealing and task running always start head of the queue. Moreover task-stealing will be performed some time later because of it is placed previous local queue
+
+2nd algorithm upgraded breadth-first scheduler
+ I’ll add just task-stealing on breadth-first. It works as follows: each thread has a FIFO. It will insert its created task into the FIFO. If the FIFO is empty, it will execute parent’s task in the FIFO. If it cannot do this or executing cannot be eligible, it will steals from next thread in the FIFO. But stealing will be performed with LIFO.
+Roadmap
+
+•	I’m going to implement faster 2 task scheduler interfaces.
+
+•	I’ll start to implement with priority-based task scheduler. And I’ll add Task-Stealing facility.
+
+•	Integration and implementation priority-based task scheduler into libgomp.
+
+•	Then after I’ll implement advanced breadth-first scheduler. And integrate into libgomp.
+
+•	In addition to I would like to find best OpenMP task (cut-off, task tiredness, single or multiple generator) like a BOTS Projects. Because I think I can provide some environment variable to optimization. These jobs are in progress, I’m going to use Paraver and Extrae profiling suite. 
+
+•	By the way in each steps I’ll test fundamental application
+Biography
+
+Guray Ozen is a MSc student at Polytechnic University of Catalonia, BarcelonaTech for where he works on High Performance Computing under Barcelona Supercomputing Center. He is currently working on the integration of openACC into the OmpSs suite (built on Mercurium compiler and Nanos++ task scheduler). 
+Guray graduated BSc in computer engineering from Dokuz Eylul University with top degree.
